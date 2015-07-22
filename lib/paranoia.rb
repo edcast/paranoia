@@ -2,6 +2,7 @@ require 'active_record' unless defined? ActiveRecord
 
 module Paranoia
   @@default_sentinel_value = nil
+  @play_blind = false
 
   # Change default_sentinel_value in a rails initilizer
   def self.default_sentinel_value=(val)
@@ -89,6 +90,7 @@ module Paranoia
   end
 
   def restore!(opts = {})
+    @play_blind = true
     self.class.transaction do
       run_callbacks(:restore) do
         # Fixes a bug where the build would error because attributes were frozen.
@@ -106,11 +108,13 @@ module Paranoia
   end
   alias :restore :restore!
 
-  def paranoia_destroyed?
-    send(paranoia_column) != paranoia_sentinel_value
+  def destroyed?
+    value = (send(paranoia_column) != paranoia_sentinel_value) && !@play_blind
+    @play_blind = false
+    value
   end
-  alias :deleted? :paranoia_destroyed?
-
+  alias :deleted? :destroyed?
+   
   private
 
   # touch paranoia column.
@@ -173,31 +177,6 @@ class ActiveRecord::Base
     alias :really_delete :delete
 
     alias :destroy_without_paranoia :destroy
-    def really_destroy!
-      transaction do
-        run_callbacks(:real_destroy) do
-          dependent_reflections = self.class.reflections.select do |name, reflection|
-            reflection.options[:dependent] == :destroy
-          end
-          if dependent_reflections.any?
-            dependent_reflections.each do |name, reflection|
-              association_data = self.send(name)
-              # has_one association can return nil
-              # .paranoid? will work for both instances and classes
-              if association_data && association_data.paranoid?
-                if reflection.collection?
-                  association_data.with_deleted.each(&:really_destroy!)
-                else
-                  association_data.really_destroy!
-                end
-              end
-            end
-          end
-          write_attribute(paranoia_column, current_time_from_proper_timezone)
-          destroy_without_paranoia
-        end
-      end
-    end
 
     include Paranoia
     class_attribute :paranoia_column, :paranoia_sentinel_value

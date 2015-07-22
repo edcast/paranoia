@@ -173,7 +173,7 @@ class ParanoiaTest < test_framework
     model.destroy
 
     assert_equal false, model.destroyed_at.nil?
-    assert model.paranoia_destroyed?
+    assert model.destroyed?
 
     assert_equal 0, model.class.count
     assert_equal 1, model.class.unscoped.count
@@ -194,7 +194,7 @@ class ParanoiaTest < test_framework
     model.destroy
 
     assert DateTime.new(0) != model.deleted_at
-    assert model.paranoia_destroyed?
+    assert model.destroyed?
 
     assert_equal 0, model.class.count
     assert_equal 1, model.class.unscoped.count
@@ -318,16 +318,6 @@ class ParanoiaTest < test_framework
     end
   end
 
-  def test_destroy_on_really_destroyed_record
-    model = ParanoidModel.create!
-    model.really_destroy!
-    assert model.really_destroyed?
-    assert model.paranoia_destroyed?
-    model.destroy
-    assert model.really_destroyed?
-    assert model.paranoia_destroyed?
-  end
-
   def test_destroy_on_unsaved_record
     # Just to demonstrate the AR behaviour
     model = NonParanoidModel.new
@@ -339,9 +329,9 @@ class ParanoiaTest < test_framework
     # Mirrors behaviour above
     model = ParanoidModel.new
     model.destroy!
-    assert model.paranoia_destroyed?
+    assert model.destroyed?
     model.destroy!
-    assert model.paranoia_destroyed?
+    assert model.destroyed?
   end
 
   def test_restore
@@ -350,13 +340,13 @@ class ParanoiaTest < test_framework
     id = model.id
     model.destroy
 
-    assert model.paranoia_destroyed?
+    assert model.destroyed?
 
     model = ParanoidModel.only_deleted.find(id)
     model.restore!
     model.reload
 
-    assert_equal false, model.paranoia_destroyed?
+    assert_equal false, model.destroyed?
   end
 
   def test_restore_on_object_return_self
@@ -406,7 +396,7 @@ class ParanoiaTest < test_framework
     id = model.id
     model.destroy
 
-    assert model.paranoia_destroyed?
+    assert model.destroyed?
 
     model = CallbackModel.only_deleted.find(id)
     model.restore!
@@ -415,52 +405,6 @@ class ParanoiaTest < test_framework
     assert model.instance_variable_get(:@restore_callback_called)
   end
 
-  def test_really_destroy
-    model = ParanoidModel.new
-    model.save
-    model.really_destroy!
-    refute ParanoidModel.unscoped.exists?(model.id)
-  end
-
-  def test_real_destroy_dependent_destroy
-    parent = ParentModel.create
-    child1 = parent.very_related_models.create
-    child2 = parent.non_paranoid_models.create
-    child3 = parent.create_non_paranoid_model
-
-    parent.really_destroy!
-
-    refute RelatedModel.unscoped.exists?(child1.id)
-    refute NonParanoidModel.unscoped.exists?(child2.id)
-    refute NonParanoidModel.unscoped.exists?(child3.id)
-  end
-
-  def test_real_destroy_dependent_destroy_after_normal_destroy
-    parent = ParentModel.create
-    child = parent.very_related_models.create
-    parent.destroy
-    parent.really_destroy!
-    refute RelatedModel.unscoped.exists?(child.id)
-  end
-
-  def test_real_destroy_dependent_destroy_after_normal_destroy_does_not_delete_other_children
-    parent_1 = ParentModel.create
-    child_1 = parent_1.very_related_models.create
-
-    parent_2 = ParentModel.create
-    child_2 = parent_2.very_related_models.create
-    parent_1.destroy
-    parent_1.really_destroy!
-    assert RelatedModel.unscoped.exists?(child_2.id)
-  end
-
-  def test_really_destroy_behavior_for_callbacks
-    model = CallbackModel.new
-    model.save
-    model.really_destroy!
-
-    assert model.instance_variable_get(:@real_destroy_callback_called)
-  end
 
   def test_really_delete
     model = ParanoidModel.new
@@ -492,9 +436,9 @@ class ParanoiaTest < test_framework
     b.reload
     c.reload
 
-    refute a.paranoia_destroyed?
-    assert b.paranoia_destroyed?
-    refute c.paranoia_destroyed?
+    refute a.destroyed?
+    assert b.destroyed?
+    refute c.destroyed?
   end
 
   def test_restore_with_associations
@@ -663,21 +607,6 @@ class ParanoiaTest < test_framework
     assert_nil belongsTos[1].deleted_at
   end
 
-  # covers #131
-  def test_has_one_really_destroy_with_nil
-    model = ParanoidModelWithHasOne.create
-    model.really_destroy!
-
-    refute ParanoidModelWithBelong.unscoped.exists?(model.id)
-  end
-
-  def test_has_one_really_destroy_with_record
-    model = ParanoidModelWithHasOne.create { |record| record.build_paranoid_model_with_belong }
-    model.really_destroy!
-
-    refute ParanoidModelWithBelong.unscoped.exists?(model.id)
-  end
-
   def test_observers_notified
     a = ParanoidModelWithObservers.create
     a.destroy
@@ -829,33 +758,6 @@ class ParanoiaTest < test_framework
     related.valid?
   end
 
-  # TODO: find a fix for Rails 4.1
-  if ActiveRecord::VERSION::STRING !~ /\A4\.1/
-    def test_counter_cache_column_update_on_really_destroy
-      parent_model_with_counter_cache_column = ParentModelWithCounterCacheColumn.create
-      related_model = parent_model_with_counter_cache_column.related_models.create
-
-      assert_equal 1, parent_model_with_counter_cache_column.reload.related_models_count
-      related_model.really_destroy!
-      assert_equal 0, parent_model_with_counter_cache_column.reload.related_models_count
-    end
-  end
-
-  # TODO: find a fix for Rails 4.0 and 4.1
-  if ActiveRecord::VERSION::STRING >= '4.2'
-    def test_callbacks_for_counter_cache_column_update_on_really_destroy!
-      parent_model_with_counter_cache_column = ParentModelWithCounterCacheColumn.create
-      related_model = parent_model_with_counter_cache_column.related_models.create
-
-      assert_equal nil, related_model.instance_variable_get(:@after_destroy_callback_called)
-      assert_equal nil, related_model.instance_variable_get(:@after_commit_on_destroy_callback_called)
-
-      related_model.really_destroy!
-
-      assert related_model.instance_variable_get(:@after_destroy_callback_called)
-      assert related_model.instance_variable_get(:@after_commit_on_destroy_callback_called)
-    end
-  end
 
   private
   def get_featureful_model
