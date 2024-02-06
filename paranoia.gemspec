@@ -1,5 +1,5 @@
 # -*- encoding: utf-8 -*-
-require File.expand_path("../lib/paranoia/version", __FILE__)
+# stub: paranoia 2.1.3 ruby lib
 
 Gem::Specification.new do |s|
   s.name        = "paranoia"
