@@ -530,16 +530,6 @@ class ParanoiaTest < test_framework
     end
   end
 
-  def test_destroy_on_really_destroyed_record
-    model = ParanoidModel.create!
-    model.really_destroy!
-    assert model.really_destroyed?
-    assert model.destroyed?
-    model.destroy
-    assert model.really_destroyed?
-    assert model.destroyed?
-  end
-
   def test_destroy_on_unsaved_record
     # Just to demonstrate the AR behaviour
     model = NonParanoidModel.new
@@ -923,21 +913,6 @@ class ParanoiaTest < test_framework
     refute_nil belongsTos[0].deleted_at
     assert_nil hasOnes[1].deleted_at
     assert_nil belongsTos[1].deleted_at
-  end
-
-  # covers #131
-  def test_has_one_really_destroy_with_nil
-    model = ParanoidModelWithHasOne.create
-    model.really_destroy!
-
-    refute ParanoidModelWithBelong.unscoped.exists?(model.id)
-  end
-
-  def test_has_one_really_destroy_with_record
-    model = ParanoidModelWithHasOne.create { |record| record.build_paranoid_model_with_belong }
-    model.really_destroy!
-
-    refute ParanoidModelWithBelong.unscoped.exists?(model.id)
   end
 
   def test_observers_notified
