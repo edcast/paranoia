@@ -7,6 +7,7 @@ end
 
 module Paranoia
   @@default_sentinel_value = nil
+  @play_blind = false
 
   # Change default_sentinel_value in a rails initializer
   def self.default_sentinel_value=(val)
@@ -103,6 +104,7 @@ module Paranoia
   alias_method :delete, :paranoia_delete
 
   def restore!(opts = {})
+    @play_blind = true
     self.class.transaction do
       run_callbacks(:restore) do
         recovery_window_range = get_recovery_window_range(opts)
